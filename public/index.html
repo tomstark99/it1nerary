@@ -1,0 +1,1830 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>it1nerary</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            mono: ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'monospace']
+          }
+        }
+      }
+    };
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+
+  <style>
+    * {
+      font-family: 'JetBrains Mono', monospace;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* Subtle 50% reduced pulse for the small live status dot */
+    @keyframes statusBlink {
+      0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.55);
+      }
+      50% {
+        opacity: 0.8;
+        transform: scale(1.04);
+        box-shadow: 0 0 0 3px rgba(16, 185, 129, 0);
+      }
+    }
+
+    .live-dot {
+      animation: statusBlink 2s infinite ease-in-out;
+    }
+
+    /* Active day card pulsing green border shadow */
+    @keyframes activeDayGlow {
+      0%, 100% {
+        box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.5), 0 6px 20px -4px rgba(16, 185, 129, 0.22);
+      }
+      50% {
+        box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.85), 0 8px 26px -2px rgba(16, 185, 129, 0.35);
+      }
+    }
+
+    .active-day-card {
+      border-color: #10b981 !important;
+      animation: activeDayGlow 3s infinite ease-in-out;
+    }
+
+    /* Prevent iOS Safari zoom on input focus */
+    @media screen and (max-width: 768px) {
+      input, select, textarea {
+        font-size: 16px !important;
+      }
+    }
+  </style>
+</head>
+<body class="bg-slate-100 dark:bg-zinc-900 text-slate-800 dark:text-zinc-100 min-h-screen flex flex-col selection:bg-violet-600 selection:text-white transition-colors duration-200">
+
+  <header class="sticky top-0 z-30 bg-white/90 dark:bg-zinc-800/90 backdrop-blur-md border-b border-slate-200 dark:border-zinc-700">
+    <div class="max-w-3xl mx-auto px-3.5 sm:px-6 h-14 flex items-center justify-between gap-2">
+      <!-- Brand Logo / Home Button -->
+      <div class="flex items-center gap-2.5 cursor-pointer" onclick="window.app.navigateHome()">
+        <div class="w-8 h-8 rounded-xl bg-violet-600 text-white flex items-center justify-center shadow-sm">
+          <i class="fa-solid fa-route text-sm"></i>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="font-bold text-base sm:text-lg tracking-tight text-slate-900 dark:text-white">it<span class="text-violet-600 dark:text-violet-400">1</span>nerary</span>
+          <span id="dbStatusBadge" class="inline-flex text-[10px] px-2 py-0.5 rounded-full bg-violet-50 dark:bg-zinc-700 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-zinc-600 items-center gap-1.5">
+            <span id="dbStatusDot" class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+            <span id="dbStatusText">syncing</span>
+          </span>
+        </div>
+      </div>
+
+      <!-- Right Action Controls -->
+      <div class="flex items-center gap-1.5 sm:gap-2">
+        <!-- Time Simulator Toggle -->
+        <button onclick="window.app.toggleSimBar()" id="simToggleBtn" class="px-2.5 py-1.5 rounded-xl text-xs font-medium border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-700/60 hover:border-violet-400 text-slate-700 dark:text-zinc-200 flex items-center gap-1.5 transition">
+          <i class="fa-regular fa-clock text-violet-600 dark:text-violet-400"></i>
+          <span id="clockModeLabel">Real Time</span>
+        </button>
+
+        <!-- Light / Dark Theme Toggle -->
+        <button onclick="window.app.toggleTheme()" class="w-9 h-9 rounded-xl border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-700/60 hover:border-violet-400 text-slate-700 dark:text-zinc-200 flex items-center justify-center transition" title="Toggle Light/Dark Mode">
+          <i id="themeIcon" class="fa-solid fa-moon text-violet-600 dark:text-violet-400 text-xs"></i>
+        </button>
+
+        <!-- Settings / Manage Trips Button -->
+        <button onclick="window.app.openSettingsDrawer()" class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-violet-600 hover:bg-violet-700 text-white shadow-sm flex items-center gap-1.5 transition">
+          <i class="fa-solid fa-sliders"></i>
+          <span>Settings</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Collapsible Time Simulator Bar for testing Countdown, Live Flights, and Active Days -->
+    <div id="simControlBar" class="hidden bg-violet-50/90 dark:bg-zinc-800 border-t border-violet-200 dark:border-zinc-700 px-3.5 py-2.5">
+      <div class="max-w-3xl mx-auto flex flex-col gap-2">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div class="flex items-center gap-1.5 text-xs font-semibold text-violet-900 dark:text-violet-300">
+            <i class="fa-solid fa-wand-magic-sparkles"></i>
+            <span>Preview Time Simulator</span>
+          </div>
+          <div class="flex items-center gap-1.5 w-full sm:w-auto">
+            <input type="datetime-local" id="simDateTimeInput" onchange="window.app.setSimulatedTimeFromInput(this.value)"
+              class="flex-1 sm:flex-initial bg-white dark:bg-zinc-900 border border-violet-200 dark:border-zinc-700 rounded-lg px-2.5 py-1 text-xs text-slate-800 dark:text-zinc-100 focus:outline-none focus:border-violet-500" />
+            <button onclick="window.app.resetToRealTime()" class="px-2.5 py-1 rounded-lg bg-white dark:bg-zinc-700 border border-slate-200 dark:border-zinc-600 text-xs font-medium text-slate-700 dark:text-zinc-200 hover:bg-slate-100">
+              Reset
+            </button>
+          </div>
+        </div>
+        <div class="flex items-center gap-1.5 overflow-x-auto pb-0.5 text-[11px]">
+          <span class="text-slate-500 dark:text-zinc-400 shrink-0">Jump to:</span>
+          <button onclick="window.app.jumpSimPreset('countdown')" class="shrink-0 px-2.5 py-1 rounded-lg bg-white dark:bg-zinc-700 border border-violet-200 dark:border-zinc-600 text-violet-700 dark:text-violet-300 font-medium hover:bg-violet-100 transition">
+            Pre-Trip Countdown
+          </button>
+          <button onclick="window.app.jumpSimPreset('start_flight')" class="shrink-0 px-2.5 py-1 rounded-lg bg-white dark:bg-zinc-700 border border-violet-200 dark:border-zinc-600 text-violet-700 dark:text-violet-300 font-medium hover:bg-violet-100 transition">
+            Live Outbound Flight
+          </button>
+          <button onclick="window.app.jumpSimPreset('day1_train')" class="shrink-0 px-2.5 py-1 rounded-lg bg-white dark:bg-zinc-700 border border-violet-200 dark:border-zinc-600 text-violet-700 dark:text-violet-300 font-medium hover:bg-violet-100 transition">
+            Day 1 Live Train
+          </button>
+          <button onclick="window.app.jumpSimPreset('day2_flight')" class="shrink-0 px-2.5 py-1 rounded-lg bg-white dark:bg-zinc-700 border border-violet-200 dark:border-zinc-600 text-violet-700 dark:text-violet-300 font-medium hover:bg-violet-100 transition">
+            Day 2 Border Flight
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="flex-1 max-w-3xl w-full mx-auto px-3.5 sm:px-6 py-5 sm:py-7">
+
+    <!-- VIEW 1: HOME SCREEN (MY TRIPS) -->
+    <section id="homeView" class="space-y-5">
+      <div class="flex items-center justify-between gap-3">
+        <div>
+          <h1 class="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight">My Trips</h1>
+          <p class="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">Select a trip to view live times, hotels &amp; transit</p>
+        </div>
+        <button onclick="window.app.openTripEditor(null)" class="px-3.5 py-2 rounded-xl bg-violet-600 hover:bg-violet-700 text-white font-semibold text-xs flex items-center gap-1.5 shadow-sm transition shrink-0">
+          <i class="fa-solid fa-plus"></i>
+          <span>New Trip</span>
+        </button>
+      </div>
+
+      <!-- Local Time Pill -->
+      <div class="bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-2xl px-4 py-3 flex items-center justify-between shadow-sm">
+        <div class="flex items-center gap-2 text-xs text-slate-500 dark:text-zinc-400">
+          <i class="fa-regular fa-compass text-violet-600 dark:text-violet-400"></i>
+          <span>Local Time (<span id="homeBrowserTzName">---</span>)</span>
+        </div>
+        <div id="homeBrowserClock" class="text-sm font-bold text-slate-900 dark:text-white">--:--:--</div>
+      </div>
+
+      <!-- Trips Grid -->
+      <div id="tripsGrid" class="grid grid-cols-1 gap-3.5"></div>
+    </section>
+
+    <!-- VIEW 2: LIVE TRIP VIEW -->
+    <section id="tripLiveView" class="hidden space-y-5 pb-12">
+      <!-- Top Back Bar -->
+      <div class="flex items-center justify-between gap-2">
+        <button onclick="window.app.navigateHome()" class="inline-flex items-center gap-1.5 text-xs font-semibold text-violet-600 dark:text-violet-400 hover:text-violet-800 py-1">
+          <i class="fa-solid fa-arrow-left"></i>
+          <span>All Trips</span>
+        </button>
+        <button id="editCurrentTripBtn" class="px-3 py-1.5 rounded-xl bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 hover:border-violet-400 text-xs font-semibold text-slate-700 dark:text-zinc-200 flex items-center gap-1.5 shadow-sm transition">
+          <i class="fa-solid fa-pen text-violet-600 dark:text-violet-400 text-[11px]"></i>
+          <span>Edit Trip</span>
+        </button>
+      </div>
+
+      <!-- Trip Title Banner -->
+      <div class="bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-2xl p-4 sm:p-5 shadow-sm">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div id="liveTripStatusBadge" class="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-violet-100 dark:bg-violet-950/70 text-violet-700 dark:text-violet-300 mb-2">
+              <span>Upcoming</span>
+            </div>
+            <h1 id="liveTripTitle" class="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight">---</h1>
+            <p id="liveTripSubtitle" class="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">---</p>
+          </div>
+          <div class="text-right bg-slate-50 dark:bg-zinc-900/70 px-3 py-2 rounded-xl border border-slate-200/70 dark:border-zinc-700">
+            <div class="text-[10px] uppercase tracking-wider text-slate-400 dark:text-zinc-400">Local Time</div>
+            <div id="liveHeaderBrowserClock" class="text-sm sm:text-base font-bold text-slate-800 dark:text-zinc-100 mt-0.5">--:--:--</div>
+          </div>
+        </div>
+
+        <!-- PRE-TRIP COUNTDOWN BANNER (Only visible before trip starts) -->
+        <div id="preTripCountdownBox" class="hidden mt-4 pt-4 border-t border-slate-200 dark:border-zinc-700">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-violet-50/70 dark:bg-zinc-900/90 border border-violet-200 dark:border-zinc-700 rounded-xl p-3.5">
+            <div>
+              <div class="text-xs font-bold text-violet-900 dark:text-violet-300 flex items-center gap-1.5">
+                <i class="fa-regular fa-hourglass-half"></i>
+                <span>Countdown to Departure</span>
+              </div>
+              <p class="text-[11px] text-slate-500 dark:text-zinc-400 mt-0.5">Time remaining until outbound travel begins</p>
+            </div>
+            <div class="grid grid-cols-4 gap-1.5 text-center">
+              <div class="bg-white dark:bg-zinc-800 border border-violet-200/80 dark:border-zinc-700 rounded-lg px-2.5 py-1.5 min-w-[54px]">
+                <div id="cdDays" class="text-base sm:text-lg font-bold text-violet-700 dark:text-violet-300">00</div>
+                <div class="text-[9px] uppercase text-slate-400">Days</div>
+              </div>
+              <div class="bg-white dark:bg-zinc-800 border border-violet-200/80 dark:border-zinc-700 rounded-lg px-2.5 py-1.5 min-w-[54px]">
+                <div id="cdHours" class="text-base sm:text-lg font-bold text-violet-700 dark:text-violet-300">00</div>
+                <div class="text-[9px] uppercase text-slate-400">Hours</div>
+              </div>
+              <div class="bg-white dark:bg-zinc-800 border border-violet-200/80 dark:border-zinc-700 rounded-lg px-2.5 py-1.5 min-w-[54px]">
+                <div id="cdMins" class="text-base sm:text-lg font-bold text-violet-700 dark:text-violet-300">00</div>
+                <div class="text-[9px] uppercase text-slate-400">Mins</div>
+              </div>
+              <div class="bg-white dark:bg-zinc-800 border border-violet-200/80 dark:border-zinc-700 rounded-lg px-2.5 py-1.5 min-w-[54px]">
+                <div id="cdSecs" class="text-base sm:text-lg font-bold text-violet-700 dark:text-violet-300">00</div>
+                <div class="text-[9px] uppercase text-slate-400">Secs</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- OUTBOUND TRAVEL (Modular Transport Card) -->
+      <div class="space-y-1.5">
+        <div class="text-xs font-bold text-slate-500 dark:text-zinc-400 px-1 flex items-center gap-1.5">
+          <i class="fa-solid fa-plane-departure text-violet-600 dark:text-violet-400"></i>
+          <span>Outbound Travel</span>
+        </div>
+        <div id="startTravelContainer"></div>
+      </div>
+
+      <!-- DAYS ACCORDION LIST -->
+      <div class="space-y-2.5">
+        <div class="flex items-center justify-between px-1">
+          <div class="text-xs font-bold text-slate-500 dark:text-zinc-400 flex items-center gap-1.5">
+            <i class="fa-regular fa-calendar text-violet-600 dark:text-violet-400"></i>
+            <span>Daily Schedule</span>
+          </div>
+          <span class="text-[11px] text-slate-400 dark:text-zinc-500">Tap a day to view transport</span>
+        </div>
+        <div id="daysListContainer" class="space-y-3"></div>
+      </div>
+
+      <!-- RETURN TRAVEL (Modular Transport Card) -->
+      <div class="space-y-1.5">
+        <div class="text-xs font-bold text-slate-500 dark:text-zinc-400 px-1 flex items-center gap-1.5">
+          <i class="fa-solid fa-plane-arrival text-violet-600 dark:text-violet-400"></i>
+          <span>Return Travel</span>
+        </div>
+        <div id="endTravelContainer"></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- SETTINGS DRAWER -->
+  <div id="settingsDrawer" class="fixed inset-0 z-40 hidden">
+    <div class="absolute inset-0 bg-slate-900/50 backdrop-blur-xs" onclick="window.app.closeSettingsDrawer()"></div>
+    <div class="absolute right-0 top-0 bottom-0 w-full max-w-md bg-white dark:bg-zinc-800 border-l border-slate-200 dark:border-zinc-700 shadow-2xl flex flex-col">
+      <div class="p-4 border-b border-slate-200 dark:border-zinc-700 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <i class="fa-solid fa-sliders text-violet-600 dark:text-violet-400"></i>
+          <h2 class="font-bold text-sm text-slate-900 dark:text-white">Manage Trips</h2>
+        </div>
+        <button onclick="window.app.closeSettingsDrawer()" class="w-8 h-8 rounded-lg bg-slate-100 dark:bg-zinc-700 text-slate-500 dark:text-zinc-300 flex items-center justify-center">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="p-4 flex-1 overflow-y-auto space-y-4">
+        <div class="flex items-center justify-between gap-2">
+          <button onclick="window.app.openTripEditor(null)" class="flex-1 py-2.5 px-3 rounded-xl bg-violet-600 hover:bg-violet-700 text-white font-semibold text-xs flex items-center justify-center gap-1.5 shadow-sm transition">
+            <i class="fa-solid fa-plus"></i>
+            <span>Create New Trip</span>
+          </button>
+          <button onclick="window.app.seedDemoTrip()" class="py-2.5 px-3 rounded-xl bg-violet-50 dark:bg-zinc-700 hover:bg-violet-100 text-violet-700 dark:text-violet-300 font-semibold text-xs transition" title="Reset sample trip">
+            Reset Sample
+          </button>
+        </div>
+
+        <div id="settingsTripsList" class="space-y-2.5"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TRIP EDITOR MODAL -->
+  <div id="manageModal" class="fixed inset-0 z-50 hidden overflow-y-auto bg-slate-900/60 backdrop-blur-xs p-2 sm:p-5">
+    <div class="max-w-3xl mx-auto bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-2xl shadow-2xl overflow-hidden my-2 sm:my-6">
+      <!-- Modal Header -->
+      <div class="sticky top-0 z-20 px-4 sm:px-6 py-3.5 bg-white/95 dark:bg-zinc-800/95 backdrop-blur-md border-b border-slate-200 dark:border-zinc-700 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <i class="fa-solid fa-pen-to-square text-violet-600 dark:text-violet-400"></i>
+          <h2 id="editorModalTitle" class="font-bold text-sm sm:text-base text-slate-900 dark:text-white">Edit Trip</h2>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="window.app.closeManageModal()" class="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-zinc-700 text-xs font-medium text-slate-600 dark:text-zinc-300">
+            Cancel
+          </button>
+          <button onclick="window.app.saveTripFromEditor()" class="px-4 py-1.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold shadow-sm">
+            Save Trip
+          </button>
+        </div>
+      </div>
+
+      <!-- Modal Form Body -->
+      <div class="p-4 sm:p-6 space-y-6 max-h-[82vh] overflow-y-auto">
+        <input type="hidden" id="editTripId" />
+
+        <!-- Trip Name & Description -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 dark:text-zinc-300 mb-1">Trip Name</label>
+            <input type="text" id="editTripName" placeholder="e.g. Japan & South Korea Spring"
+              class="w-full bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white focus:border-violet-500 focus:outline-none" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 dark:text-zinc-300 mb-1">Subtitle / Notes</label>
+            <input type="text" id="editTripSubtitle" placeholder="e.g. Tokyo, Kyoto & Seoul"
+              class="w-full bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white focus:border-violet-500 focus:outline-none" />
+          </div>
+        </div>
+
+        <!-- OUTBOUND TRAVEL EDITOR -->
+        <div class="p-4 rounded-2xl bg-violet-50/50 dark:bg-zinc-900/60 border border-violet-200/80 dark:border-zinc-700 space-y-3">
+          <div class="text-xs font-bold text-violet-900 dark:text-violet-300 flex items-center gap-1.5">
+            <i class="fa-solid fa-plane-departure"></i>
+            <span>Outbound Travel (Getting to the Trip)</span>
+          </div>
+          <div id="editorStartTravelFields"></div>
+        </div>
+
+        <!-- DAYS EDITOR -->
+        <div class="space-y-3">
+          <div class="flex items-center justify-between">
+            <div class="text-xs font-bold text-slate-700 dark:text-zinc-200 flex items-center gap-1.5">
+              <i class="fa-regular fa-calendar text-violet-600 dark:text-violet-400"></i>
+              <span>Trip Days</span>
+            </div>
+            <button type="button" onclick="window.app.addEditorDay()" class="px-3 py-1.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white font-semibold text-xs flex items-center gap-1.5 shadow-xs">
+              <i class="fa-solid fa-plus"></i>
+              <span>Add Day</span>
+            </button>
+          </div>
+          <div id="editorDaysContainer" class="space-y-4"></div>
+        </div>
+
+        <!-- RETURN TRAVEL EDITOR -->
+        <div class="p-4 rounded-2xl bg-violet-50/50 dark:bg-zinc-900/60 border border-violet-200/80 dark:border-zinc-700 space-y-3">
+          <div class="text-xs font-bold text-violet-900 dark:text-violet-300 flex items-center gap-1.5">
+            <i class="fa-solid fa-plane-arrival"></i>
+            <span>Return Travel (Heading Home)</span>
+          </div>
+          <div id="editorEndTravelFields"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toastBox" class="fixed bottom-4 right-4 z-50 hidden bg-slate-900 dark:bg-zinc-100 text-white dark:text-zinc-900 px-4 py-2.5 rounded-xl shadow-lg text-xs font-medium flex items-center gap-2">
+    <i class="fa-solid fa-circle-check text-violet-400 dark:text-violet-600"></i>
+    <span id="toastMessage">Saved</span>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    // ============================================================================
+    // 1. COUNTRIES & TIMEZONES CATALOG
+    // ============================================================================
+    const COUNTRIES = [
+      { code: 'GB', name: 'United Kingdom', tz: 'Europe/London', flag: '🇬🇧', shortTz: 'GMT/BST' },
+      { code: 'FR', name: 'France', tz: 'Europe/Paris', flag: '🇫🇷', shortTz: 'CET' },
+      { code: 'DE', name: 'Germany', tz: 'Europe/Berlin', flag: '🇩🇪', shortTz: 'CET' },
+      { code: 'IT', name: 'Italy', tz: 'Europe/Rome', flag: '🇮🇹', shortTz: 'CET' },
+      { code: 'ES', name: 'Spain', tz: 'Europe/Madrid', flag: '🇪🇸', shortTz: 'CET' },
+      { code: 'CH', name: 'Switzerland', tz: 'Europe/Zurich', flag: '🇨🇭', shortTz: 'CET' },
+      { code: 'NL', name: 'Netherlands', tz: 'Europe/Amsterdam', flag: '🇳🇱', shortTz: 'CET' },
+      { code: 'JP', name: 'Japan', tz: 'Asia/Tokyo', flag: '🇯🇵', shortTz: 'JST' },
+      { code: 'KR', name: 'South Korea', tz: 'Asia/Seoul', flag: '🇰🇷', shortTz: 'KST' },
+      { code: 'TW', name: 'Taiwan', tz: 'Asia/Taipei', flag: '🇹🇼', shortTz: 'CST' },
+      { code: 'SG', name: 'Singapore', tz: 'Asia/Singapore', flag: '🇸🇬', shortTz: 'SGT' },
+      { code: 'TH', name: 'Thailand', tz: 'Asia/Bangkok', flag: '🇹🇭', shortTz: 'ICT' },
+      { code: 'VN', name: 'Vietnam', tz: 'Asia/Ho_Chi_Minh', flag: '🇻🇳', shortTz: 'ICT' },
+      { code: 'AE', name: 'UAE (Dubai)', tz: 'Asia/Dubai', flag: '🇦🇪', shortTz: 'GST' },
+      { code: 'US_NY', name: 'USA (New York)', tz: 'America/New_York', flag: '🇺🇸', shortTz: 'ET' },
+      { code: 'US_LA', name: 'USA (Los Angeles)', tz: 'America/Los_Angeles', flag: '🇺🇸', shortTz: 'PT' },
+      { code: 'CA_TO', name: 'Canada (Toronto)', tz: 'America/Toronto', flag: '🇨🇦', shortTz: 'ET' },
+      { code: 'AU_SY', name: 'Australia (Sydney)', tz: 'Australia/Sydney', flag: '🇦🇺', shortTz: 'AEST' },
+      { code: 'NZ', name: 'New Zealand', tz: 'Pacific/Auckland', flag: '🇳🇿', shortTz: 'NZST' }
+    ];
+
+    function getCountry(code) {
+      return COUNTRIES.find(c => c.code === code) || COUNTRIES[0];
+    }
+
+    const TRANSPORT_TYPES = {
+      plane: { icon: 'fa-plane', label: 'Plane' },
+      train: { icon: 'fa-train', label: 'Train' },
+      bus:   { icon: 'fa-bus',   label: 'Bus' }
+    };
+
+    // ============================================================================
+    // 2. TIMEZONE & EPOCH CONVERSION ENGINE
+    // ============================================================================
+    function wallTimeToEpochMs(localIsoStr, timeZone) {
+      if (!localIsoStr) return NaN;
+      const [datePart, timePart = '00:00'] = localIsoStr.split('T');
+      const [year, month, day] = datePart.split('-').map(Number);
+      const [hour, minute] = timePart.split(':').map(Number);
+      if (!year || !month || !day) return NaN;
+
+      const guessUtcMs = Date.UTC(year, month - 1, day, hour || 0, minute || 0, 0);
+      const getOffsetMs = (utcMs) => {
+        const dtf = new Intl.DateTimeFormat('en-US', {
+          timeZone,
+          hour12: false,
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit'
+        });
+        const parts = dtf.formatToParts(new Date(utcMs));
+        const map = {};
+        for (const p of parts) map[p.type] = p.value;
+        const hr = map.hour === '24' ? 0 : Number(map.hour);
+        const asUtc = Date.UTC(Number(map.year), Number(map.month) - 1, Number(map.day), hr, Number(map.minute), Number(map.second));
+        return asUtc - utcMs;
+      };
+
+      const offset1 = getOffsetMs(guessUtcMs);
+      const adjusted = guessUtcMs - offset1;
+      const offset2 = getOffsetMs(adjusted);
+      return guessUtcMs - offset2;
+    }
+
+    function formatClockInTz(epochMs, timeZone) {
+      try {
+        return new Intl.DateTimeFormat('en-GB', {
+          timeZone,
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: false
+        }).format(new Date(epochMs));
+      } catch (e) {
+        return '--:--:--';
+      }
+    }
+
+    function extractWallTime(localIsoStr) {
+      if (!localIsoStr) return '--:--';
+      const parts = localIsoStr.split('T');
+      return parts[1] ? parts[1].slice(0, 5) : localIsoStr;
+    }
+
+    function extractWallDateShort(localIsoStr) {
+      if (!localIsoStr) return '';
+      const [d] = localIsoStr.split('T');
+      const [y, m, day] = d.split('-').map(Number);
+      if (!y || !m || !day) return d;
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      return `${day} ${months[m - 1]}`;
+    }
+
+    function addDaysToYmd(ymdStr, daysToAdd) {
+      const [y, m, d] = ymdStr.split('-').map(Number);
+      const dt = new Date(Date.UTC(y, m - 1, d + daysToAdd));
+      const yy = dt.getUTCFullYear();
+      const mm = String(dt.getUTCMonth() + 1).padStart(2, '0');
+      const dd = String(dt.getUTCDate()).padStart(2, '0');
+      return `${yy}-${mm}-${dd}`;
+    }
+
+    function getTodayYmdInTz(epochMs, timeZone) {
+      const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      }).formatToParts(new Date(epochMs));
+      const map = {};
+      for (const p of parts) map[p.type] = p.value;
+      return `${map.year}-${map.month}-${map.day}`;
+    }
+
+    function computeWindowBounds(startMs, endMs, nowMs) {
+      if (isNaN(startMs) || isNaN(endMs) || endMs <= startMs) {
+        return { status: 'UPCOMING', pct: 0 };
+      }
+      if (nowMs < startMs) return { status: 'UPCOMING', pct: 0 };
+      if (nowMs > endMs) return { status: 'PAST', pct: 100 };
+      const pct = ((nowMs - startMs) / (endMs - startMs)) * 100;
+      return { status: 'LIVE', pct: Math.max(0, Math.min(100, pct)) };
+    }
+
+    function computeTransportProgress(leg, nowMs) {
+      const startCountry = getCountry(leg.startCountry);
+      const endCountry = getCountry(leg.endCountry || leg.startCountry);
+      const startMs = wallTimeToEpochMs(leg.startTime, startCountry.tz);
+      const endMs = wallTimeToEpochMs(leg.endTime, endCountry.tz);
+      return {
+        ...computeWindowBounds(startMs, endMs, nowMs),
+        startMs,
+        endMs,
+        startCountry,
+        endCountry
+      };
+    }
+
+    function computeDayWindow(day, nowMs) {
+      const startCountry = getCountry(day.startCountry);
+      const endCountry = getCountry(day.borderCrossing ? day.endCountry : day.startCountry);
+      const startMs = wallTimeToEpochMs(`${day.date}T00:00`, startCountry.tz);
+      const endMs = wallTimeToEpochMs(`${day.date}T23:59`, endCountry.tz) + 59000;
+      return {
+        ...computeWindowBounds(startMs, endMs, nowMs),
+        startMs,
+        endMs,
+        startCountry,
+        endCountry
+      };
+    }
+
+    // ============================================================================
+    // 3. DEFAULT DEMO TRIP
+    // ============================================================================
+    function buildDefaultDemoTrip() {
+      const todayTokyo = getTodayYmdInTz(Date.now(), 'Asia/Tokyo');
+      const day0Date = addDaysToYmd(todayTokyo, -1);
+      const day1Date = todayTokyo;
+      const day2Date = addDaysToYmd(todayTokyo, 1);
+      const day3Date = addDaysToYmd(todayTokyo, 2);
+
+      return {
+        id: 'trip_neon_horizon',
+        name: 'Japan & South Korea Express',
+        subtitle: 'Tokyo, Kyoto & Seoul across 2 timezones',
+        updatedAt: Date.now(),
+        startTravel: {
+          id: 'leg_outbound',
+          type: 'plane',
+          number: 'BA 007',
+          fromLabel: 'London (LHR)',
+          toLabel: 'Tokyo (HND)',
+          startCountry: 'GB',
+          endCountry: 'JP',
+          startTime: `${day0Date}T11:30`,
+          endTime: `${day1Date}T07:35`
+        },
+        days: [
+          {
+            id: 'day_1',
+            date: day1Date,
+            name: 'Tokyo to Kyoto',
+            wakeHotelName: 'Park Hyatt Tokyo',
+            wakeHotelUrl: 'https://www.hyatt.com',
+            sleepHotelName: 'The Thousand Kyoto',
+            sleepHotelUrl: 'https://www.keihanhotels-resorts.co.jp/the-thousand-kyoto/en/',
+            startCountry: 'JP',
+            endCountry: 'JP',
+            borderCrossing: false,
+            transports: [
+              {
+                id: 'd1_t1',
+                type: 'train',
+                number: 'NEX 14',
+                fromLabel: 'Shinjuku',
+                toLabel: 'Tokyo Station',
+                startCountry: 'JP',
+                endCountry: 'JP',
+                startTime: `${day1Date}T09:00`,
+                endTime: `${day1Date}T10:15`
+              },
+              {
+                id: 'd1_t2',
+                type: 'train',
+                number: 'Nozomi 227',
+                fromLabel: 'Tokyo',
+                toLabel: 'Kyoto',
+                startCountry: 'JP',
+                endCountry: 'JP',
+                startTime: `${day1Date}T10:30`,
+                endTime: `${day1Date}T21:45`
+              },
+              {
+                id: 'd1_t3',
+                type: 'bus',
+                number: 'Line 205',
+                fromLabel: 'Kyoto Station',
+                toLabel: 'Gion District',
+                startCountry: 'JP',
+                endCountry: 'JP',
+                startTime: `${day1Date}T22:00`,
+                endTime: `${day1Date}T23:15`
+              }
+            ]
+          },
+          {
+            id: 'day_2',
+            date: day2Date,
+            name: 'Kyoto to Seoul',
+            wakeHotelName: 'The Thousand Kyoto',
+            wakeHotelUrl: 'https://www.keihanhotels-resorts.co.jp/the-thousand-kyoto/en/',
+            sleepHotelName: 'Four Seasons Seoul',
+            sleepHotelUrl: 'https://www.fourseasons.com/seoul/',
+            startCountry: 'JP',
+            endCountry: 'KR',
+            borderCrossing: true,
+            transports: [
+              {
+                id: 'd2_t1',
+                type: 'train',
+                number: 'Haruka 19',
+                fromLabel: 'Kyoto',
+                toLabel: 'Kansai Airport (KIX)',
+                startCountry: 'JP',
+                endCountry: 'JP',
+                startTime: `${day2Date}T10:00`,
+                endTime: `${day2Date}T11:20`
+              },
+              {
+                id: 'd2_t2',
+                type: 'plane',
+                number: 'KE 724',
+                fromLabel: 'Osaka (KIX)',
+                toLabel: 'Seoul (ICN)',
+                startCountry: 'JP',
+                endCountry: 'KR',
+                startTime: `${day2Date}T14:00`,
+                endTime: `${day2Date}T16:00`
+              }
+            ]
+          },
+          {
+            id: 'day_3',
+            date: day3Date,
+            name: 'Seoul Highlands',
+            wakeHotelName: 'Four Seasons Seoul',
+            wakeHotelUrl: 'https://www.fourseasons.com/seoul/',
+            sleepHotelName: 'Signiel Seoul',
+            sleepHotelUrl: 'https://www.lottehotel.com/seoul-signiel/en.html',
+            startCountry: 'KR',
+            endCountry: 'KR',
+            borderCrossing: false,
+            transports: [
+              {
+                id: 'd3_t1',
+                type: 'bus',
+                number: 'Limousine 6002',
+                fromLabel: 'Gwanghwamun',
+                toLabel: 'Jamsil Tower',
+                startCountry: 'KR',
+                endCountry: 'KR',
+                startTime: `${day3Date}T13:00`,
+                endTime: `${day3Date}T14:10`
+              }
+            ]
+          }
+        ],
+        endTravel: {
+          id: 'leg_return',
+          type: 'plane',
+          number: 'BA 018',
+          fromLabel: 'Seoul (ICN)',
+          toLabel: 'London (LHR)',
+          startCountry: 'KR',
+          endCountry: 'GB',
+          startTime: `${day3Date}T18:30`,
+          endTime: `${day3Date}T23:55`
+        }
+      };
+    }
+
+    // ============================================================================
+    // 4. FIREBASE CONFIG (YOUR CREDENTIALS) & APP STATE
+    // ============================================================================
+    const LOCAL_STORAGE_TRIPS_KEY = 'it1nerary_local_trips_v1';
+
+    // Directly integrated with your it1nerary Firebase project credentials
+    const firebaseConfig = {
+      apiKey: "AIzaSyDou2ckTfnnHjJg1xLBlKpUxZliu4lYocY",
+      authDomain: "it1nerary.firebaseapp.com",
+      projectId: "it1nerary",
+      storageBucket: "it1nerary.firebasestorage.app",
+      messagingSenderId: "378217948428",
+      appId: "1:378217948428:web:184a60ef9c3f4bdd9f5529"
+    };
+
+    const appId = 'it1nerary';
+    let db = null;
+    let auth = null;
+    let unsubscribeTrips = null;
+
+    const state = {
+      trips: [],
+      selectedTripId: null,
+      expandedDays: new Set(),
+      simulatedEpochMs: null,
+      editorDraft: null,
+      browserTz: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+      darkMode: false
+    };
+
+    function getNowMs() {
+      return state.simulatedEpochMs !== null ? state.simulatedEpochMs : Date.now();
+    }
+
+    function saveTripsToLocalCache(trips) {
+      try {
+        localStorage.setItem(LOCAL_STORAGE_TRIPS_KEY, JSON.stringify(trips));
+      } catch (e) {}
+    }
+
+    function loadTripsFromLocalCache() {
+      try {
+        const raw = localStorage.getItem(LOCAL_STORAGE_TRIPS_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch (e) {}
+      return null;
+    }
+
+    function updateStatusBadge(connected) {
+      const dot = document.getElementById('dbStatusDot');
+      const text = document.getElementById('dbStatusText');
+      if (!dot || !text) return;
+      if (connected) {
+        dot.className = 'w-1.5 h-1.5 rounded-full bg-emerald-500';
+        text.textContent = 'synced';
+      } else {
+        dot.className = 'w-1.5 h-1.5 rounded-full bg-amber-500';
+        text.textContent = 'local';
+      }
+    }
+
+    // ============================================================================
+    // 5. MODULAR TRANSPORT CARD COMPONENT
+    // ============================================================================
+    function renderModularTransportCard(leg, nowMs) {
+      const info = computeTransportProgress(leg, nowMs);
+      const tMeta = TRANSPORT_TYPES[leg.type] || TRANSPORT_TYPES.train;
+
+      const isLive = info.status === 'LIVE';
+      const isPast = info.status === 'PAST';
+
+      const cardClasses = isLive
+        ? 'border-emerald-500 bg-emerald-50/40 dark:bg-emerald-950/20 shadow-sm'
+        : isPast
+          ? 'border-slate-200 dark:border-zinc-700/70 bg-slate-50/70 dark:bg-zinc-800/40 opacity-60'
+          : 'border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800';
+
+      const statusBadge = isLive
+        ? `<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
+             <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 live-dot"></span>
+             In Transit
+           </span>`
+        : isPast
+          ? `<span class="text-[11px] font-medium px-2 py-0.5 rounded-full bg-slate-200/70 dark:bg-zinc-700 text-slate-500 dark:text-zinc-400">Completed</span>`
+          : `<span class="text-[11px] font-medium px-2 py-0.5 rounded-full bg-violet-50 dark:bg-zinc-700 text-violet-700 dark:text-violet-300">Scheduled</span>`;
+
+      const routeTitle = (leg.fromLabel && leg.toLabel)
+        ? `${leg.fromLabel} → ${leg.toLabel}`
+        : `${info.startCountry.name} → ${info.endCountry.name}`;
+
+      return `
+        <div class="rounded-2xl border p-3.5 sm:p-4 transition-all ${cardClasses}" data-transport-id="${leg.id}">
+          <div class="flex items-center justify-between gap-2 mb-3">
+            <div class="flex items-center gap-2.5 min-w-0">
+              <div class="w-8 h-8 rounded-xl shrink-0 ${isLive ? 'bg-emerald-500 text-white' : 'bg-violet-100 dark:bg-violet-950/80 text-violet-600 dark:text-violet-300'} flex items-center justify-center">
+                <i class="fa-solid ${tMeta.icon} text-xs"></i>
+              </div>
+              <div class="min-w-0">
+                <div class="text-xs sm:text-sm font-bold text-slate-900 dark:text-white truncate">${routeTitle}</div>
+                <div class="text-[11px] text-slate-500 dark:text-zinc-400 flex items-center gap-1.5">
+                  <span>${tMeta.label}</span>
+                  ${leg.number ? `<span>•</span><span class="font-semibold text-violet-600 dark:text-violet-400">${leg.number}</span>` : ''}
+                </div>
+              </div>
+            </div>
+            <div class="shrink-0" data-role="leg-status-pill">${statusBadge}</div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2.5 bg-slate-50 dark:bg-zinc-900/60 rounded-xl p-2.5 border border-slate-200/60 dark:border-zinc-700/60">
+            <div>
+              <div class="flex items-center justify-between text-[10px] text-slate-400 dark:text-zinc-400">
+                <span>Depart</span>
+                <span>${extractWallDateShort(leg.startTime)}</span>
+              </div>
+              <div class="text-sm sm:text-base font-bold text-slate-900 dark:text-white mt-0.5">${extractWallTime(leg.startTime)}</div>
+              ${leg.fromLabel ? `<div class="text-xs font-semibold text-slate-700 dark:text-zinc-200 truncate mt-0.5">${leg.fromLabel}</div>` : ''}
+              <div class="text-[11px] text-slate-500 dark:text-zinc-400 truncate mt-0.5 flex items-center gap-1">
+                <span>${info.startCountry.flag} ${info.startCountry.name}</span>
+                <span class="text-[10px] px-1.5 py-0.2 rounded bg-violet-100/80 dark:bg-zinc-800 text-violet-700 dark:text-violet-300 font-semibold">${info.startCountry.shortTz}</span>
+              </div>
+            </div>
+            <div class="text-right border-l border-slate-200 dark:border-zinc-700 pl-2.5">
+              <div class="flex items-center justify-between text-[10px] text-slate-400 dark:text-zinc-400">
+                <span>${extractWallDateShort(leg.endTime)}</span>
+                <span>Arrive</span>
+              </div>
+              <div class="text-sm sm:text-base font-bold text-slate-900 dark:text-white mt-0.5">${extractWallTime(leg.endTime)}</div>
+              ${leg.toLabel ? `<div class="text-xs font-semibold text-slate-700 dark:text-zinc-200 truncate mt-0.5">${leg.toLabel}</div>` : ''}
+              <div class="text-[11px] text-slate-500 dark:text-zinc-400 truncate mt-0.5 flex items-center justify-end gap-1">
+                <span>${info.endCountry.flag} ${info.endCountry.name}</span>
+                <span class="text-[10px] px-1.5 py-0.2 rounded bg-violet-100/80 dark:bg-zinc-800 text-violet-700 dark:text-violet-300 font-semibold">${info.endCountry.shortTz}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-3">
+            <div class="flex items-center justify-between text-[11px] mb-1">
+              <span class="${isLive ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-slate-400 dark:text-zinc-500'}" data-role="leg-progress-label">
+                ${isLive ? 'In Transit' : isPast ? 'Arrived' : 'Not departed'}
+              </span>
+              <span class="font-bold ${isLive ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-zinc-400'}" data-role="leg-pct-text">
+                ${Math.round(info.pct)}%
+              </span>
+            </div>
+            <div class="w-full h-2 bg-slate-200 dark:bg-zinc-700 rounded-full overflow-hidden">
+              <div class="h-full bg-emerald-500 rounded-full transition-all duration-500" data-role="leg-bar" style="width: ${info.pct.toFixed(1)}%"></div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // ============================================================================
+    // 6. RENDER HOME & LIVE TRIP VIEWS
+    // ============================================================================
+    function computeOverallTripStatus(trip, nowMs) {
+      const startInfo = computeTransportProgress(trip.startTravel, nowMs);
+      const endInfo = computeTransportProgress(trip.endTravel, nowMs);
+      if (nowMs < startInfo.startMs) {
+        return { state: 'UPCOMING', startMs: startInfo.startMs, endMs: endInfo.endMs };
+      }
+      if (nowMs > endInfo.endMs) {
+        return { state: 'PAST', startMs: startInfo.startMs, endMs: endInfo.endMs };
+      }
+      return { state: 'LIVE', startMs: startInfo.startMs, endMs: endInfo.endMs };
+    }
+
+    function renderHomeView() {
+      const nowMs = getNowMs();
+      document.getElementById('homeBrowserTzName').textContent = state.browserTz;
+      document.getElementById('homeBrowserClock').textContent = formatClockInTz(nowMs, state.browserTz);
+
+      const grid = document.getElementById('tripsGrid');
+      if (!state.trips.length) {
+        grid.innerHTML = `
+          <div class="bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-2xl p-8 text-center space-y-3">
+            <div class="w-11 h-11 rounded-2xl bg-violet-100 dark:bg-zinc-700 text-violet-600 dark:text-violet-400 flex items-center justify-center mx-auto">
+              <i class="fa-solid fa-suitcase-rolling"></i>
+            </div>
+            <div class="text-sm font-bold text-slate-800 dark:text-white">No trips yet</div>
+            <p class="text-xs text-slate-500 dark:text-zinc-400">Create a trip or load the sample itinerary.</p>
+            <button onclick="window.app.seedDemoTrip()" class="px-4 py-2 rounded-xl bg-violet-600 text-white text-xs font-semibold">
+              Load Sample Trip
+            </button>
+          </div>
+        `;
+        return;
+      }
+
+      grid.innerHTML = state.trips.map(trip => {
+        const overall = computeOverallTripStatus(trip, nowMs);
+        const startC = getCountry(trip.startTravel?.startCountry);
+        const firstDayC = getCountry(trip.days?.[0]?.startCountry || trip.startTravel?.endCountry);
+
+        const badgeHtml = overall.state === 'LIVE'
+          ? `<span class="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
+               <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 live-dot"></span>
+               Live Now
+             </span>`
+          : overall.state === 'UPCOMING'
+            ? `<span class="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-violet-100 dark:bg-zinc-700 text-violet-700 dark:text-violet-300">Upcoming</span>`
+            : `<span class="text-[11px] font-medium px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-zinc-700 text-slate-500 dark:text-zinc-400">Completed</span>`;
+
+        return `
+          <div onclick="window.app.selectTrip('${trip.id}')"
+            class="group cursor-pointer bg-white dark:bg-zinc-800 border ${overall.state === 'LIVE' ? 'border-emerald-500/70' : 'border-slate-200 dark:border-zinc-700'} hover:border-violet-400 rounded-2xl p-4 sm:p-5 shadow-xs transition-all flex items-center justify-between gap-3">
+            <div class="space-y-1.5 min-w-0">
+              <div class="flex items-center gap-2">
+                ${badgeHtml}
+                <span class="text-xs text-slate-400 dark:text-zinc-400">${trip.days?.length || 0} Days</span>
+              </div>
+              <h2 class="text-base sm:text-lg font-bold text-slate-900 dark:text-white group-hover:text-violet-600 dark:group-hover:text-violet-400 transition truncate">${trip.name}</h2>
+              <p class="text-xs text-slate-500 dark:text-zinc-400 truncate">${trip.subtitle || ''}</p>
+              <div class="pt-1 flex flex-wrap items-center gap-2 text-[11px] text-slate-500 dark:text-zinc-400">
+                <span>${startC.flag} ${startC.name}</span>
+                <i class="fa-solid fa-arrow-right text-[10px] text-violet-500"></i>
+                <span>${firstDayC.flag} ${firstDayC.name}</span>
+              </div>
+            </div>
+            <div class="w-9 h-9 rounded-xl bg-violet-50 dark:bg-zinc-700 text-violet-600 dark:text-violet-300 group-hover:bg-violet-600 group-hover:text-white flex items-center justify-center transition shrink-0">
+              <i class="fa-solid fa-chevron-right text-xs"></i>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderLiveTripStructure() {
+      const trip = state.trips.find(t => t.id === state.selectedTripId);
+      if (!trip) {
+        window.app.navigateHome();
+        return;
+      }
+
+      const nowMs = getNowMs();
+      document.getElementById('liveTripTitle').textContent = trip.name;
+      document.getElementById('liveTripSubtitle').textContent = trip.subtitle || '';
+      document.getElementById('editCurrentTripBtn').onclick = () => window.app.openTripEditor(trip.id);
+
+      document.getElementById('startTravelContainer').innerHTML = renderModularTransportCard(trip.startTravel, nowMs);
+      document.getElementById('endTravelContainer').innerHTML = renderModularTransportCard(trip.endTravel, nowMs);
+
+      const daysContainer = document.getElementById('daysListContainer');
+      daysContainer.innerHTML = (trip.days || []).map((day, idx) => {
+        const dayNum = idx + 1;
+        const dWin = computeDayWindow(day, nowMs);
+        const isExpanded = state.expandedDays.has(day.id);
+
+        const isLiveDay = dWin.status === 'LIVE';
+        const isPastDay = dWin.status === 'PAST';
+
+        let activeLeg = null;
+        let activeLegInfo = null;
+        for (const leg of (day.transports || [])) {
+          const lInfo = computeTransportProgress(leg, nowMs);
+          if (lInfo.status === 'LIVE') {
+            activeLeg = leg;
+            activeLegInfo = lInfo;
+            break;
+          }
+        }
+
+        const activeCountryForClock = (day.borderCrossing && dWin.pct > 50)
+          ? dWin.endCountry
+          : dWin.startCountry;
+
+        const cardStyle = isLiveDay
+          ? 'active-day-card bg-white dark:bg-zinc-800 border-2'
+          : isPastDay
+            ? 'bg-slate-100/80 dark:bg-zinc-800/40 border border-slate-200 dark:border-zinc-700/60 opacity-60'
+            : 'bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700';
+
+        const activeRouteLabel = activeLeg
+          ? ((activeLeg.fromLabel && activeLeg.toLabel)
+              ? `${activeLeg.fromLabel} → ${activeLeg.toLabel}`
+              : `${ getCountry(activeLeg.startCountry).name } → ${ getCountry(activeLeg.endCountry || activeLeg.startCountry).name }`)
+          : '';
+
+        const totalLegs = (day.transports || []).length;
+        const legsCountText = `${totalLegs} ${totalLegs === 1 ? 'leg' : 'legs'}`;
+
+        const liveTransportMiniCard = activeLeg
+          ? `<div class="mt-2.5 p-2.5 sm:p-3 rounded-xl bg-emerald-50/80 dark:bg-emerald-950/30 border border-emerald-500/40 space-y-2 transition hover:border-emerald-500" data-role="day-live-mini-card">
+               <div class="flex items-center justify-between gap-2">
+                 <div class="flex items-center gap-2 min-w-0">
+                   <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 live-dot shrink-0"></span>
+                   <i class="fa-solid ${TRANSPORT_TYPES[activeLeg.type]?.icon || 'fa-train'} text-emerald-600 dark:text-emerald-400 text-xs shrink-0"></i>
+                   <span class="text-xs font-bold text-slate-900 dark:text-white truncate">${activeRouteLabel}</span>
+                 </div>
+                 <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 shrink-0">
+                   In Transit • <span data-role="day-mini-pct">${Math.round(activeLegInfo.pct)}%</span>
+                 </span>
+               </div>
+               <div class="flex items-center justify-between text-[11px] text-slate-600 dark:text-zinc-300 font-medium">
+                 <span>${extractWallTime(activeLeg.startTime)} <span class="text-[10px] text-slate-400">(${activeLegInfo.startCountry.shortTz})</span></span>
+                 <span class="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">${activeLeg.number || TRANSPORT_TYPES[activeLeg.type]?.label || ''}</span>
+                 <span>${extractWallTime(activeLeg.endTime)} <span class="text-[10px] text-slate-400">(${activeLegInfo.endCountry.shortTz})</span></span>
+               </div>
+               <div class="w-full h-1.5 bg-emerald-200/70 dark:bg-zinc-700 rounded-full overflow-hidden">
+                 <div class="h-full bg-emerald-500 rounded-full transition-all duration-500" data-role="day-mini-bar" style="width: ${activeLegInfo.pct.toFixed(1)}%"></div>
+               </div>
+             </div>`
+          : '';
+
+        const countryBadgeHtml = day.borderCrossing
+          ? `<span>${dWin.startCountry.flag} ${dWin.startCountry.name} → ${dWin.endCountry.flag} ${dWin.endCountry.name}</span>`
+          : `<span>${dWin.startCountry.flag} ${dWin.startCountry.name}</span>`;
+
+        return `
+          <div class="rounded-2xl transition-all overflow-hidden shadow-xs ${cardStyle}" data-day-card="${day.id}">
+            <div class="p-4 sm:p-5 cursor-pointer select-none" onclick="window.app.toggleDayExpand('${day.id}')">
+              <div class="flex items-start justify-between gap-2">
+                <div class="space-y-1 min-w-0 flex-1">
+                  <div class="flex flex-wrap items-center gap-2">
+                    <span data-role="day-badge" class="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-0.5 rounded-lg ${isLiveDay ? 'bg-emerald-600 text-white' : 'bg-violet-600 text-white'}">
+                      ${isLiveDay ? '<span class="w-1.5 h-1.5 rounded-full bg-white live-dot"></span>' : ''}
+                      <span>Day ${dayNum}</span>
+                    </span>
+                    <span class="text-xs text-slate-400 dark:text-zinc-400">${extractWallDateShort(day.date)}</span>
+                    <span class="text-xs text-slate-500 dark:text-zinc-400">${countryBadgeHtml}</span>
+                  </div>
+                  <h3 class="text-base sm:text-lg font-bold text-slate-900 dark:text-white pt-0.5">${day.name}</h3>
+                </div>
+
+                <div class="flex items-center gap-1.5 shrink-0">
+                  <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-violet-50 dark:bg-zinc-700/80 text-violet-700 dark:text-violet-300 text-[11px] font-semibold border border-violet-200/60 dark:border-zinc-600">
+                    <i class="fa-solid fa-route text-[10px]"></i>
+                    <span>${legsCountText}</span>
+                  </span>
+                  <div class="w-8 h-8 rounded-xl bg-slate-100 dark:bg-zinc-700 text-slate-500 dark:text-zinc-300 flex items-center justify-center">
+                    <i class="fa-solid fa-chevron-${isExpanded ? 'up' : 'down'} text-xs"></i>
+                  </div>
+                </div>
+              </div>
+
+              <div data-role="day-live-slot">${liveTransportMiniCard}</div>
+
+              <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mt-3.5 pt-3.5 border-t border-slate-100 dark:border-zinc-700/70 text-xs">
+                <div class="bg-slate-50 dark:bg-zinc-900/60 rounded-xl p-2.5 border border-slate-200/60 dark:border-zinc-700/60">
+                  <div class="text-[10px] text-slate-400 dark:text-zinc-400 flex items-center gap-1">
+                    <i class="fa-solid fa-sun text-violet-500"></i>
+                    <span>Waking Up</span>
+                  </div>
+                  <div class="mt-1 font-semibold truncate">
+                    ${day.wakeHotelUrl
+                      ? `<a href="${day.wakeHotelUrl}" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="text-violet-600 dark:text-violet-400 hover:underline inline-flex items-center gap-1 max-w-full">
+                           <span class="truncate">${day.wakeHotelName || 'Hotel'}</span>
+                           <i class="fa-solid fa-arrow-up-right-from-square text-[9px] shrink-0"></i>
+                         </a>`
+                      : `<span class="text-slate-800 dark:text-zinc-200">${day.wakeHotelName || '—'}</span>`
+                    }
+                  </div>
+                </div>
+
+                <div class="bg-slate-50 dark:bg-zinc-900/60 rounded-xl p-2.5 border border-slate-200/60 dark:border-zinc-700/60">
+                  <div class="text-[10px] text-slate-400 dark:text-zinc-400 flex items-center gap-1">
+                    <i class="fa-solid fa-moon text-violet-500"></i>
+                    <span>Sleeping</span>
+                  </div>
+                  <div class="mt-1 font-semibold truncate">
+                    ${day.sleepHotelUrl
+                      ? `<a href="${day.sleepHotelUrl}" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="text-violet-600 dark:text-violet-400 hover:underline inline-flex items-center gap-1 max-w-full">
+                           <span class="truncate">${day.sleepHotelName || 'Hotel'}</span>
+                           <i class="fa-solid fa-arrow-up-right-from-square text-[9px] shrink-0"></i>
+                         </a>`
+                      : `<span class="text-slate-800 dark:text-zinc-200">${day.sleepHotelName || '—'}</span>`
+                    }
+                  </div>
+                </div>
+
+                <div class="bg-slate-50 dark:bg-zinc-900/60 rounded-xl p-2.5 border border-slate-200/60 dark:border-zinc-700/60">
+                  <div class="text-[10px] text-slate-400 dark:text-zinc-400 truncate" data-role="day-country-tz-label">
+                    ${activeCountryForClock.flag} ${activeCountryForClock.name} Time
+                  </div>
+                  <div class="mt-1 text-xs sm:text-sm font-bold text-slate-900 dark:text-white" data-role="day-country-clock">
+                    ${formatClockInTz(nowMs, activeCountryForClock.tz)}
+                  </div>
+                </div>
+
+                <div class="bg-slate-50 dark:bg-zinc-900/60 rounded-xl p-2.5 border border-slate-200/60 dark:border-zinc-700/60">
+                  <div class="text-[10px] text-slate-400 dark:text-zinc-400 truncate">
+                    Local Time
+                  </div>
+                  <div class="mt-1 text-xs sm:text-sm font-bold text-slate-900 dark:text-white" data-role="day-browser-clock">
+                    ${formatClockInTz(nowMs, state.browserTz)}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div id="dayExpandPanel_${day.id}" class="${isExpanded ? 'block' : 'hidden'} px-4 sm:px-5 pb-4 sm:pb-5 pt-2 bg-slate-50/70 dark:bg-zinc-900/50 border-t border-slate-200/80 dark:border-zinc-700 space-y-2.5">
+              <div class="text-[11px] font-bold text-slate-500 dark:text-zinc-400 flex items-center justify-between">
+                <span>Day ${dayNum} Transport (${(day.transports || []).length})</span>
+                ${day.borderCrossing ? `<span class="text-violet-600 dark:text-violet-400">${dWin.startCountry.flag} → ${dWin.endCountry.flag} Border Crossing</span>` : ''}
+              </div>
+              <div class="space-y-2.5">
+                ${(day.transports || []).length
+                  ? day.transports.map(leg => renderModularTransportCard(leg, nowMs)).join('')
+                  : `<div class="text-xs text-slate-400 py-3 text-center">No transport scheduled for this day.</div>`
+                }
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      updateLiveTelemetryDOM();
+    }
+
+    // ============================================================================
+    // 7. 1-SECOND REAL-TIME CLOCK & PROGRESS UPDATER
+    // ============================================================================
+    function updateLiveTelemetryDOM() {
+      const nowMs = getNowMs();
+
+      const homeClock = document.getElementById('homeBrowserClock');
+      if (homeClock) homeClock.textContent = formatClockInTz(nowMs, state.browserTz);
+
+      const headerClock = document.getElementById('liveHeaderBrowserClock');
+      if (headerClock) headerClock.textContent = formatClockInTz(nowMs, state.browserTz);
+
+      const trip = state.trips.find(t => t.id === state.selectedTripId);
+      if (!trip) return;
+
+      const overall = computeOverallTripStatus(trip, nowMs);
+      const statusBadge = document.getElementById('liveTripStatusBadge');
+      const cdBox = document.getElementById('preTripCountdownBox');
+
+      if (overall.state === 'UPCOMING') {
+        statusBadge.className = 'inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-violet-100 dark:bg-violet-950/70 text-violet-700 dark:text-violet-300 mb-2';
+        statusBadge.innerHTML = `<i class="fa-regular fa-clock"></i><span>Upcoming Trip</span>`;
+        cdBox.classList.remove('hidden');
+
+        const diffSec = Math.max(0, Math.floor((overall.startMs - nowMs) / 1000));
+        const d = Math.floor(diffSec / 86400);
+        const h = Math.floor((diffSec % 86400) / 3600);
+        const m = Math.floor((diffSec % 3600) / 60);
+        const s = diffSec % 60;
+
+        document.getElementById('cdDays').textContent = String(d).padStart(2, '0');
+        document.getElementById('cdHours').textContent = String(h).padStart(2, '0');
+        document.getElementById('cdMins').textContent = String(m).padStart(2, '0');
+        document.getElementById('cdSecs').textContent = String(s).padStart(2, '0');
+      } else if (overall.state === 'LIVE') {
+        statusBadge.className = 'inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 mb-2';
+        statusBadge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-500 live-dot"></span><span>Live Trip</span>`;
+        cdBox.classList.add('hidden');
+      } else {
+        statusBadge.className = 'inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-0.5 rounded-full bg-slate-200 dark:bg-zinc-700 text-slate-600 dark:text-zinc-300 mb-2';
+        statusBadge.innerHTML = `<i class="fa-solid fa-check"></i><span>Trip Completed</span>`;
+        cdBox.classList.add('hidden');
+      }
+
+      const allLegs = [
+        trip.startTravel,
+        ...(trip.days || []).flatMap(d => d.transports || []),
+        trip.endTravel
+      ].filter(Boolean);
+
+      for (const leg of allLegs) {
+        const cardEl = document.querySelector(`[data-transport-id="${leg.id}"]`);
+        if (!cardEl) continue;
+        const info = computeTransportProgress(leg, nowMs);
+        const bar = cardEl.querySelector('[data-role="leg-bar"]');
+        const pctTxt = cardEl.querySelector('[data-role="leg-pct-text"]');
+        const labelEl = cardEl.querySelector('[data-role="leg-progress-label"]');
+        if (bar) bar.style.width = `${info.pct.toFixed(1)}%`;
+        if (pctTxt) pctTxt.textContent = `${Math.round(info.pct)}%`;
+        if (labelEl) {
+          labelEl.textContent = info.status === 'LIVE' ? 'In Transit' : info.status === 'PAST' ? 'Arrived' : 'Not departed';
+        }
+      }
+
+      (trip.days || []).forEach((day, idx) => {
+        const dayNum = idx + 1;
+        const dayEl = document.querySelector(`[data-day-card="${day.id}"]`);
+        if (!dayEl) return;
+
+        const dWin = computeDayWindow(day, nowMs);
+        const activeCountryForClock = (day.borderCrossing && dWin.pct > 50)
+          ? dWin.endCountry
+          : dWin.startCountry;
+
+        const cClock = dayEl.querySelector('[data-role="day-country-clock"]');
+        const cLabel = dayEl.querySelector('[data-role="day-country-tz-label"]');
+        const bClock = dayEl.querySelector('[data-role="day-browser-clock"]');
+        if (cClock) cClock.textContent = formatClockInTz(nowMs, activeCountryForClock.tz);
+        if (cLabel) cLabel.textContent = `${activeCountryForClock.flag} ${activeCountryForClock.name} Time`;
+        if (bClock) bClock.textContent = formatClockInTz(nowMs, state.browserTz);
+
+        dayEl.classList.remove('active-day-card', 'opacity-60');
+        const dayBadgeEl = dayEl.querySelector('[data-role="day-badge"]');
+        if (dWin.status === 'LIVE') {
+          dayEl.classList.add('active-day-card');
+          if (dayBadgeEl) {
+            dayBadgeEl.className = 'inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-0.5 rounded-lg bg-emerald-600 text-white';
+            dayBadgeEl.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-white live-dot"></span><span>Day ${dayNum}</span>`;
+          }
+        } else {
+          if (dWin.status === 'PAST') dayEl.classList.add('opacity-60');
+          if (dayBadgeEl) {
+            dayBadgeEl.className = 'inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-0.5 rounded-lg bg-violet-600 text-white';
+            dayBadgeEl.innerHTML = `<span>Day ${dayNum}</span>`;
+          }
+        }
+
+        const miniBar = dayEl.querySelector('[data-role="day-mini-bar"]');
+        const miniPct = dayEl.querySelector('[data-role="day-mini-pct"]');
+        if (miniBar || miniPct) {
+          const liveLeg = (day.transports || []).find(l => computeTransportProgress(l, nowMs).status === 'LIVE');
+          if (liveLeg) {
+            const lInfo = computeTransportProgress(liveLeg, nowMs);
+            if (miniBar) miniBar.style.width = `${lInfo.pct.toFixed(1)}%`;
+            if (miniPct) miniPct.textContent = `${Math.round(lInfo.pct)}%`;
+          }
+        }
+      });
+    }
+
+    // ============================================================================
+    // 8. TRIP EDITOR FORM HELPERS
+    // ============================================================================
+    function renderCountryOptions(selectedCode) {
+      return COUNTRIES.map(c =>
+        `<option value="${c.code}" ${c.code === selectedCode ? 'selected' : ''}>${c.flag} ${c.name} (${c.shortTz})</option>`
+      ).join('');
+    }
+
+    function renderEndpointEditorFields(prefix, legObj) {
+      return `
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-500 dark:text-zinc-400 mb-1">Type</label>
+            <select id="${prefix}_type" class="w-full bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-xl px-2.5 py-2 text-xs text-slate-900 dark:text-white">
+              <option value="plane" ${legObj.type === 'plane' ? 'selected' : ''}>✈️ Plane</option>
+              <option value="train" ${legObj.type === 'train' ? 'selected' : ''}>🚆 Train</option>
+              <option value="bus" ${legObj.type === 'bus' ? 'selected' : ''}>🚌 Bus</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-500 dark:text-zinc-400 mb-1">Flight / Train Number</label>
+            <input type="text" id="${prefix}_number" value="${legObj.number || ''}" placeholder="e.g. BA 007"
+              class="w-full bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-xl px-2.5 py-2 text-xs text-slate-900 dark:text-white" />
+          </div>
+          <div class="grid grid-cols-2 gap-1.5">
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-500 dark:text-zinc-400 mb-1">From City</label>
+              <input type="text" id="${prefix}_fromLabel" value="${legObj.fromLabel || ''}" placeholder="London"
+                class="w-full bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-xl px-2 py-2 text-xs text-slate-900 dark:text-white" />
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-500 dark:text-zinc-400 mb-1">To City</label>
+              <input type="text" id="${prefix}_toLabel" value="${legObj.toLabel || ''}" placeholder="Tokyo"
+                class="w-full bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-xl px-2 py-2 text-xs text-slate-900 dark:text-white" />
+            </div>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mt-2.5">
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-500 dark:text-zinc-400 mb-1">Start Country &amp; Local Departure</label>
+            <div class="grid grid-cols-1 gap-1.5">
+              <select id="${prefix}_startCountry" class="w-full bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-xl px-2.5 py-2 text-xs text-slate-900 dark:text-white">
+                ${renderCountryOptions(legObj.startCountry)}
+              </select>
+              <input type="datetime-local" id="${prefix}_startTime" value="${legObj.startTime || ''}"
+                class="w-full bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-xl px-2.5 py-2 text-xs text-slate-900 dark:text-white" />
+            </div>
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-500 dark:text-zinc-400 mb-1">End Country &amp; Local Arrival</label>
+            <div class="grid grid-cols-1 gap-1.5">
+              <select id="${prefix}_endCountry" class="w-full bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-xl px-2.5 py-2 text-xs text-slate-900 dark:text-white">
+                ${renderCountryOptions(legObj.endCountry)}
+              </select>
+              <input type="datetime-local" id="${prefix}_endTime" value="${legObj.endTime || ''}"
+                class="w-full bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-xl px-2.5 py-2 text-xs text-slate-900 dark:text-white" />
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderEditorDays() {
+      const container = document.getElementById('editorDaysContainer');
+      const days = state.editorDraft.days || [];
+
+      container.innerHTML = days.map((day, dIdx) => {
+        const noBorderChecked = !day.borderCrossing;
+        return `
+          <div class="p-4 rounded-2xl bg-slate-50 dark:bg-zinc-900/70 border border-slate-200 dark:border-zinc-700 space-y-3.5">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="px-2.5 py-0.5 rounded-lg bg-violet-600 text-white font-bold text-xs">Day ${dIdx + 1}</span>
+                <input type="date" value="${day.date || ''}" onchange="window.app.updateDraftDay(${dIdx}, 'date', this.value)"
+                  class="bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-lg px-2 py-1 text-xs text-slate-800 dark:text-white" />
+              </div>
+              <button type="button" onclick="window.app.removeEditorDay(${dIdx})" class="text-xs text-rose-500 hover:text-rose-700 font-semibold">
+                Remove Day
+              </button>
+            </div>
+
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-500 dark:text-zinc-400 mb-1">Day Name / Location</label>
+              <input type="text" value="${day.name || ''}" oninput="window.app.updateDraftDay(${dIdx}, 'name', this.value)" placeholder="e.g. Tokyo to Kyoto"
+                class="w-full bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white" />
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <div class="space-y-1.5">
+                <label class="block text-[11px] font-semibold text-slate-500 dark:text-zinc-400">Waking Up Hotel &amp; Link</label>
+                <input type="text" value="${day.wakeHotelName || ''}" oninput="window.app.updateDraftDay(${dIdx}, 'wakeHotelName', this.value)" placeholder="Hotel Name"
+                  class="w-full bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-xl px-2.5 py-1.5 text-xs text-slate-900 dark:text-white" />
+                <input type="url" value="${day.wakeHotelUrl || ''}" oninput="window.app.updateDraftDay(${dIdx}, 'wakeHotelUrl', this.value)" placeholder="https://..."
+                  class="w-full bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-xl px-2.5 py-1.5 text-xs text-slate-900 dark:text-white" />
+              </div>
+              <div class="space-y-1.5">
+                <label class="block text-[11px] font-semibold text-slate-500 dark:text-zinc-400">Sleeping Hotel &amp; Link</label>
+                <input type="text" value="${day.sleepHotelName || ''}" oninput="window.app.updateDraftDay(${dIdx}, 'sleepHotelName', this.value)" placeholder="Hotel Name"
+                  class="w-full bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-xl px-2.5 py-1.5 text-xs text-slate-900 dark:text-white" />
+                <input type="url" value="${day.sleepHotelUrl || ''}" oninput="window.app.updateDraftDay(${dIdx}, 'sleepHotelUrl', this.value)" placeholder="https://..."
+                  class="w-full bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-xl px-2.5 py-1.5 text-xs text-slate-900 dark:text-white" />
+              </div>
+            </div>
+
+            <div class="p-3 rounded-xl bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 space-y-2.5">
+              <div class="flex items-center justify-between">
+                <span class="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">Country &amp; Timezone</span>
+                <label class="inline-flex items-center gap-1.5 text-xs text-slate-600 dark:text-zinc-300 cursor-pointer">
+                  <input type="checkbox" ${noBorderChecked ? 'checked' : ''} onchange="window.app.toggleNoBorderCrossing(${dIdx}, this.checked)"
+                    class="rounded text-violet-600 focus:ring-violet-500" />
+                  <span>No border crossing</span>
+                </label>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div>
+                  <label class="block text-[10px] text-slate-400 mb-0.5">Start Country</label>
+                  <select onchange="window.app.updateDraftDayCountry(${dIdx}, 'startCountry', this.value)"
+                    class="w-full bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-xl px-2.5 py-1.5 text-xs text-slate-900 dark:text-white">
+                    ${renderCountryOptions(day.startCountry)}
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-[10px] text-slate-400 mb-0.5">End Country</label>
+                  <select ${noBorderChecked ? 'disabled' : ''} onchange="window.app.updateDraftDayCountry(${dIdx}, 'endCountry', this.value)"
+                    class="w-full bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-xl px-2.5 py-1.5 text-xs text-slate-900 dark:text-white ${noBorderChecked ? 'opacity-50 cursor-not-allowed' : ''}">
+                    ${renderCountryOptions(noBorderChecked ? day.startCountry : day.endCountry)}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div class="space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">Day Transport</span>
+                <button type="button" onclick="window.app.addEditorDayTransport(${dIdx})"
+                  class="px-2.5 py-1 rounded-lg bg-violet-100 dark:bg-zinc-700 text-violet-700 dark:text-violet-300 font-semibold text-[11px]">
+                  + Add Transport
+                </button>
+              </div>
+              <div class="space-y-2">
+                ${(day.transports || []).map((leg, lIdx) => `
+                  <div class="p-3 rounded-xl bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 space-y-2">
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      <select onchange="window.app.updateDraftTransport(${dIdx}, ${lIdx}, 'type', this.value)"
+                        class="bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-lg px-2 py-1.5 text-xs">
+                        <option value="plane" ${leg.type === 'plane' ? 'selected' : ''}>✈️ Plane</option>
+                        <option value="train" ${leg.type === 'train' ? 'selected' : ''}>🚆 Train</option>
+                        <option value="bus" ${leg.type === 'bus' ? 'selected' : ''}>🚌 Bus</option>
+                      </select>
+                      <input type="text" value="${leg.fromLabel || ''}" oninput="window.app.updateDraftTransport(${dIdx}, ${lIdx}, 'fromLabel', this.value)" placeholder="From (e.g. Tokyo)"
+                        class="bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-lg px-2 py-1.5 text-xs" />
+                      <input type="text" value="${leg.toLabel || ''}" oninput="window.app.updateDraftTransport(${dIdx}, ${lIdx}, 'toLabel', this.value)" placeholder="To (e.g. Kyoto)"
+                        class="bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-lg px-2 py-1.5 text-xs" />
+                      <div class="flex items-center gap-1">
+                        <input type="text" value="${leg.number || ''}" oninput="window.app.updateDraftTransport(${dIdx}, ${lIdx}, 'number', this.value)" placeholder="No. (opt)"
+                          class="w-full bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-lg px-2 py-1.5 text-xs" />
+                        <button type="button" onclick="window.app.removeEditorDayTransport(${dIdx}, ${lIdx})" class="text-rose-500 px-1.5">
+                          <i class="fa-solid fa-trash-can text-xs"></i>
+                        </button>
+                      </div>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div>
+                        <label class="block text-[10px] text-slate-400">Start (${getCountry(leg.startCountry || day.startCountry).shortTz})</label>
+                        <input type="datetime-local" value="${leg.startTime || ''}" onchange="window.app.updateDraftTransport(${dIdx}, ${lIdx}, 'startTime', this.value)"
+                          class="w-full bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-lg px-2 py-1 text-xs" />
+                      </div>
+                      <div>
+                        <label class="block text-[10px] text-slate-400">End (${getCountry(leg.endCountry || (day.borderCrossing ? day.endCountry : day.startCountry)).shortTz})</label>
+                        <input type="datetime-local" value="${leg.endTime || ''}" onchange="window.app.updateDraftTransport(${dIdx}, ${lIdx}, 'endTime', this.value)"
+                          class="w-full bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-lg px-2 py-1 text-xs" />
+                      </div>
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderSettingsTripsList() {
+      const listEl = document.getElementById('settingsTripsList');
+      if (!listEl) return;
+      listEl.innerHTML = state.trips.map(t => `
+        <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-zinc-900/70 border border-slate-200 dark:border-zinc-700 flex items-center justify-between gap-2">
+          <div class="min-w-0">
+            <div class="font-bold text-xs text-slate-900 dark:text-white truncate">${t.name}</div>
+            <div class="text-[11px] text-slate-500 dark:text-zinc-400">${t.days?.length || 0} days</div>
+          </div>
+          <div class="flex items-center gap-1.5 shrink-0">
+            <button onclick="window.app.openTripEditor('${t.id}')" class="px-2.5 py-1 rounded-lg bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 text-xs font-medium text-violet-600 dark:text-violet-400">
+              Edit
+            </button>
+            <button onclick="window.app.deleteTrip('${t.id}')" class="px-2.5 py-1 rounded-lg bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 text-xs font-medium text-rose-500">
+              Delete
+            </button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function showToast(msg) {
+      const box = document.getElementById('toastBox');
+      document.getElementById('toastMessage').textContent = msg;
+      box.classList.remove('hidden');
+      setTimeout(() => box.classList.add('hidden'), 2600);
+    }
+
+    // ============================================================================
+    // 9. GLOBAL WINDOW.APP CONTROLLER
+    // ============================================================================
+    window.app = {
+      toggleTheme() {
+        state.darkMode = !state.darkMode;
+        const root = document.documentElement;
+        const icon = document.getElementById('themeIcon');
+        if (state.darkMode) {
+          root.classList.add('dark');
+          icon.className = 'fa-solid fa-sun text-violet-400 text-xs';
+        } else {
+          root.classList.remove('dark');
+          icon.className = 'fa-solid fa-moon text-violet-600 text-xs';
+        }
+      },
+
+      navigateHome() {
+        state.selectedTripId = null;
+        document.getElementById('tripLiveView').classList.add('hidden');
+        document.getElementById('homeView').classList.remove('hidden');
+        renderHomeView();
+      },
+
+      selectTrip(tripId) {
+        state.selectedTripId = tripId;
+        state.expandedDays.clear();
+        document.getElementById('homeView').classList.add('hidden');
+        document.getElementById('tripLiveView').classList.remove('hidden');
+        renderLiveTripStructure();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      },
+
+      toggleDayExpand(dayId) {
+        if (state.expandedDays.has(dayId)) {
+          state.expandedDays.delete(dayId);
+        } else {
+          state.expandedDays.add(dayId);
+        }
+        renderLiveTripStructure();
+      },
+
+      toggleSimBar() {
+        document.getElementById('simControlBar').classList.toggle('hidden');
+      },
+
+      setSimulatedTimeFromInput(val) {
+        if (!val) return;
+        const ms = new Date(val).getTime();
+        if (!isNaN(ms)) {
+          state.simulatedEpochMs = ms;
+          document.getElementById('clockModeLabel').textContent = 'Simulated';
+          if (state.selectedTripId) renderLiveTripStructure();
+          else renderHomeView();
+        }
+      },
+
+      resetToRealTime() {
+        state.simulatedEpochMs = null;
+        document.getElementById('clockModeLabel').textContent = 'Real Time';
+        document.getElementById('simDateTimeInput').value = '';
+        if (state.selectedTripId) renderLiveTripStructure();
+        else renderHomeView();
+      },
+
+      jumpSimPreset(preset) {
+        const trip = state.trips.find(t => t.id === state.selectedTripId) || state.trips[0];
+        if (!trip) return;
+        if (!state.selectedTripId) this.selectTrip(trip.id);
+
+        if (preset === 'countdown') {
+          const sInfo = computeTransportProgress(trip.startTravel, Date.now());
+          state.simulatedEpochMs = sInfo.startMs - (2 * 3600 * 1000 + 15 * 60 * 1000);
+        } else if (preset === 'start_flight') {
+          const sInfo = computeTransportProgress(trip.startTravel, Date.now());
+          state.simulatedEpochMs = sInfo.startMs + (sInfo.endMs - sInfo.startMs) * 0.58;
+        } else if (preset === 'day1_train') {
+          const leg = trip.days?.[0]?.transports?.[1] || trip.days?.[0]?.transports?.[0];
+          if (leg) {
+            const lInfo = computeTransportProgress(leg, Date.now());
+            state.simulatedEpochMs = lInfo.startMs + (lInfo.endMs - lInfo.startMs) * 0.45;
+            state.expandedDays.add(trip.days[0].id);
+          }
+        } else if (preset === 'day2_flight') {
+          const leg = trip.days?.[1]?.transports?.[1] || trip.days?.[1]?.transports?.[0];
+          if (leg) {
+            const lInfo = computeTransportProgress(leg, Date.now());
+            state.simulatedEpochMs = lInfo.startMs + (lInfo.endMs - lInfo.startMs) * 0.65;
+            state.expandedDays.add(trip.days[1].id);
+          }
+        }
+
+        document.getElementById('clockModeLabel').textContent = 'Simulated';
+        renderLiveTripStructure();
+      },
+
+      openSettingsDrawer() {
+        renderSettingsTripsList();
+        document.getElementById('settingsDrawer').classList.remove('hidden');
+      },
+
+      closeSettingsDrawer() {
+        document.getElementById('settingsDrawer').classList.add('hidden');
+      },
+
+      openTripEditor(tripId) {
+        this.closeSettingsDrawer();
+        const existing = state.trips.find(t => t.id === tripId);
+        const todayYmd = getTodayYmdInTz(Date.now(), 'Europe/London');
+
+        if (existing) {
+          state.editorDraft = JSON.parse(JSON.stringify(existing));
+          document.getElementById('editorModalTitle').textContent = 'Edit Trip';
+        } else {
+          state.editorDraft = {
+            id: 'trip_' + Date.now(),
+            name: '',
+            subtitle: '',
+            startTravel: {
+              id: 'leg_start_' + Date.now(),
+              type: 'plane',
+              number: '',
+              fromLabel: 'London',
+              toLabel: 'Tokyo',
+              startCountry: 'GB',
+              endCountry: 'JP',
+              startTime: `${todayYmd}T09:00`,
+              endTime: `${todayYmd}T21:00`
+            },
+            days: [
+              {
+                id: 'day_' + Date.now(),
+                date: todayYmd,
+                name: 'Tokyo Arrival',
+                wakeHotelName: '',
+                wakeHotelUrl: '',
+                sleepHotelName: '',
+                sleepHotelUrl: '',
+                startCountry: 'JP',
+                endCountry: 'JP',
+                borderCrossing: false,
+                transports: []
+              }
+            ],
+            endTravel: {
+              id: 'leg_end_' + Date.now(),
+              type: 'plane',
+              number: '',
+              fromLabel: 'Tokyo',
+              toLabel: 'London',
+              startCountry: 'JP',
+              endCountry: 'GB',
+              startTime: `${addDaysToYmd(todayYmd, 1)}T11:00`,
+              endTime: `${addDaysToYmd(todayYmd, 1)}T18:00`
+            }
+          };
+          document.getElementById('editorModalTitle').textContent = 'Create New Trip';
+        }
+
+        document.getElementById('editTripId').value = state.editorDraft.id;
+        document.getElementById('editTripName').value = state.editorDraft.name;
+        document.getElementById('editTripSubtitle').value = state.editorDraft.subtitle || '';
+
+        document.getElementById('editorStartTravelFields').innerHTML = renderEndpointEditorFields('startTravel', state.editorDraft.startTravel);
+        document.getElementById('editorEndTravelFields').innerHTML = renderEndpointEditorFields('endTravel', state.editorDraft.endTravel);
+        renderEditorDays();
+
+        document.getElementById('manageModal').classList.remove('hidden');
+      },
+
+      closeManageModal() {
+        document.getElementById('manageModal').classList.add('hidden');
+      },
+
+      updateDraftDay(dIdx, field, val) {
+        if (!state.editorDraft?.days?.[dIdx]) return;
+        state.editorDraft.days[dIdx][field] = val;
+      },
+
+      toggleNoBorderCrossing(dIdx, isNoBorder) {
+        const day = state.editorDraft.days[dIdx];
+        if (!day) return;
+        day.borderCrossing = !isNoBorder;
+        if (isNoBorder) {
+          day.endCountry = day.startCountry;
+          (day.transports || []).forEach(l => {
+            l.startCountry = day.startCountry;
+            l.endCountry = day.startCountry;
+          });
+        }
+        renderEditorDays();
+      },
+
+      updateDraftDayCountry(dIdx, field, code) {
+        const day = state.editorDraft.days[dIdx];
+        if (!day) return;
+        day[field] = code;
+        if (!day.borderCrossing) {
+          day.endCountry = day.startCountry;
+        }
+        (day.transports || []).forEach(l => {
+          l.startCountry = day.startCountry;
+          l.endCountry = day.borderCrossing ? day.endCountry : day.startCountry;
+        });
+        renderEditorDays();
+      },
+
+      addEditorDay() {
+        const days = state.editorDraft.days;
+        const lastDay = days[days.length - 1];
+        const nextDate = lastDay?.date ? addDaysToYmd(lastDay.date, 1) : getTodayYmdInTz(Date.now(), 'UTC');
+        const nextCountry = lastDay ? (lastDay.borderCrossing ? lastDay.endCountry : lastDay.startCountry) : 'JP';
+
+        days.push({
+          id: 'day_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+          date: nextDate,
+          name: `Day ${days.length + 1}`,
+          wakeHotelName: lastDay?.sleepHotelName || '',
+          wakeHotelUrl: lastDay?.sleepHotelUrl || '',
+          sleepHotelName: '',
+          sleepHotelUrl: '',
+          startCountry: nextCountry,
+          endCountry: nextCountry,
+          borderCrossing: false,
+          transports: []
+        });
+        renderEditorDays();
+      },
+
+      removeEditorDay(dIdx) {
+        state.editorDraft.days.splice(dIdx, 1);
+        renderEditorDays();
+      },
+
+      addEditorDayTransport(dIdx) {
+        const day = state.editorDraft.days[dIdx];
+        if (!day) return;
+        day.transports = day.transports || [];
+        day.transports.push({
+          id: 'leg_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+          type: 'train',
+          number: '',
+          fromLabel: '',
+          toLabel: '',
+          startCountry: day.startCountry,
+          endCountry: day.borderCrossing ? day.endCountry : day.startCountry,
+          startTime: `${day.date}T10:00`,
+          endTime: `${day.date}T12:00`
+        });
+        renderEditorDays();
+      },
+
+      removeEditorDayTransport(dIdx, lIdx) {
+        state.editorDraft.days[dIdx].transports.splice(lIdx, 1);
+        renderEditorDays();
+      },
+
+      updateDraftTransport(dIdx, lIdx, field, val) {
+        const leg = state.editorDraft.days[dIdx]?.transports?.[lIdx];
+        if (!leg) return;
+        leg[field] = val;
+      },
+
+      async saveTripFromEditor() {
+        const draft = state.editorDraft;
+        draft.name = document.getElementById('editTripName').value.trim() || 'Untitled Trip';
+        draft.subtitle = document.getElementById('editTripSubtitle').value.trim();
+        draft.updatedAt = Date.now();
+
+        ['startTravel', 'endTravel'].forEach(prefix => {
+          draft[prefix] = {
+            id: draft[prefix]?.id || ('leg_' + prefix + '_' + Date.now()),
+            type: document.getElementById(`${prefix}_type`).value,
+            number: document.getElementById(`${prefix}_number`).value.trim(),
+            fromLabel: document.getElementById(`${prefix}_fromLabel`).value.trim(),
+            toLabel: document.getElementById(`${prefix}_toLabel`).value.trim(),
+            startCountry: document.getElementById(`${prefix}_startCountry`).value,
+            endCountry: document.getElementById(`${prefix}_endCountry`).value,
+            startTime: document.getElementById(`${prefix}_startTime`).value,
+            endTime: document.getElementById(`${prefix}_endTime`).value
+          };
+        });
+
+        const idx = state.trips.findIndex(t => t.id === draft.id);
+        if (idx >= 0) state.trips[idx] = draft;
+        else state.trips.unshift(draft);
+
+        saveTripsToLocalCache(state.trips);
+
+        if (db) {
+          try {
+            const ref = doc(db, 'artifacts', appId, 'public', 'data', 'it1nerary_trips', draft.id);
+            await setDoc(ref, draft);
+          } catch (err) {
+            console.warn('Firestore write warning:', err);
+          }
+        }
+
+        this.closeManageModal();
+        showToast('Trip saved');
+        if (state.selectedTripId === draft.id) renderLiveTripStructure();
+        else renderHomeView();
+      },
+
+      async deleteTrip(tripId) {
+        state.trips = state.trips.filter(t => t.id !== tripId);
+        saveTripsToLocalCache(state.trips);
+        if (db) {
+          try {
+            const ref = doc(db, 'artifacts', appId, 'public', 'data', 'it1nerary_trips', tripId);
+            await deleteDoc(ref);
+          } catch (e) {}
+        }
+        if (state.selectedTripId === tripId) this.navigateHome();
+        else renderHomeView();
+        renderSettingsTripsList();
+        showToast('Trip deleted');
+      },
+
+      async seedDemoTrip() {
+        const demo = buildDefaultDemoTrip();
+        const idx = state.trips.findIndex(t => t.id === demo.id);
+        if (idx >= 0) state.trips[idx] = demo;
+        else state.trips.unshift(demo);
+
+        saveTripsToLocalCache(state.trips);
+
+        if (db) {
+          try {
+            const ref = doc(db, 'artifacts', appId, 'public', 'data', 'it1nerary_trips', demo.id);
+            await setDoc(ref, demo);
+          } catch (e) {}
+        }
+        if (state.selectedTripId === demo.id) renderLiveTripStructure();
+        else renderHomeView();
+        renderSettingsTripsList();
+        showToast('Sample trip loaded');
+      }
+    };
+
+    // ============================================================================
+    // 10. INITIALIZE FIREBASE & START REAL-TIME TICKER
+    // ============================================================================
+    async function initApp() {
+      const cached = loadTripsFromLocalCache();
+      state.trips = cached || [buildDefaultDemoTrip()];
+      saveTripsToLocalCache(state.trips);
+      renderHomeView();
+
+      try {
+        const app = initializeApp(firebaseConfig);
+        db = getFirestore(app);
+        auth = getAuth(app);
+
+        try {
+          if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+            await signInWithCustomToken(auth, __initial_auth_token);
+          } else {
+            await signInAnonymously(auth);
+          }
+        } catch (authErr) {
+          // Proceed even if Anonymous Auth is not toggled on in Firebase Console
+        }
+
+        const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'it1nerary_trips');
+        unsubscribeTrips = onSnapshot(
+          colRef,
+          async (snap) => {
+            updateStatusBadge(true);
+            const docs = [];
+            snap.forEach(d => docs.push(d.data()));
+            docs.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+
+            if (docs.length === 0) {
+              for (const t of state.trips) {
+                const ref = doc(db, 'artifacts', appId, 'public', 'data', 'it1nerary_trips', t.id);
+                await setDoc(ref, t);
+              }
+              return;
+            }
+
+            state.trips = docs;
+            saveTripsToLocalCache(docs);
+            if (state.selectedTripId) renderLiveTripStructure();
+            else renderHomeView();
+          },
+          (err) => {
+            console.warn('Firestore listener fallback to local:', err.message);
+            updateStatusBadge(false);
+          }
+        );
+      } catch (e) {
+        updateStatusBadge(false);
+      }
+
+      setInterval(() => {
+        if (state.simulatedEpochMs !== null) {
+          state.simulatedEpochMs += 1000;
+        }
+        updateLiveTelemetryDOM();
+      }, 1000);
+    }
+
+    window.addEventListener('DOMContentLoaded', initApp);
+  </script>
+</body>
+</html>
