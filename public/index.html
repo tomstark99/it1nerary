@@ -71,12 +71,12 @@
       0%, 100% {
         opacity: 1;
         transform: scale(1);
-        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.07);
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.04);
       }
       50% {
         opacity: 0.8;
-        transform: scale(1.0025);
-        box-shadow: 0 0 0 0.18px rgba(16, 185, 129, 0);
+        transform: scale(1.0015);
+        box-shadow: 0 0 0 0.1px rgba(16, 185, 129, 0);
       }
     }
 
@@ -87,10 +87,10 @@
     /* Active day card pulsing green border shadow */
     @keyframes activeDayGlow {
       0%, 100% {
-        box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.5), 0 6px 20px -4px rgba(16, 185, 129, 0.22);
+        box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.4), 0 6px 20px -4px rgba(16, 185, 129, 0.18);
       }
       50% {
-        box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.85), 0 8px 26px -2px rgba(16, 185, 129, 0.35);
+        box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.75), 0 8px 26px -2px rgba(16, 185, 129, 0.28);
       }
     }
 
@@ -124,7 +124,7 @@
         </span>
       </div>
 
-      <!-- Right Action Controls - Compact Icon Buttons on Mobile, Labeled on sm+ -->
+      <!-- Right Action Controls -->
       <div class="flex items-center gap-1 shrink-0">
         <!-- Time Simulator Toggle -->
         <button onclick="window.app.toggleSimBar()" id="simToggleBtn" class="w-8 h-8 sm:w-auto sm:h-8 sm:px-3 rounded-xl text-xs font-medium border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-700/60 hover:border-violet-400 text-slate-700 dark:text-zinc-200 flex items-center justify-center gap-1.5 transition" title="Preview Time Simulator">
@@ -1028,7 +1028,7 @@
               '</div>' +
             '</div>' +
             '<div data-role="day-live-slot">' + liveTransportMiniCard + '</div>' +
-            '<div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mt-3.5 pt-3.5 border-t border-slate-100 dark:border-zinc-700/70 text-xs">' +
+            '<div class="grid grid-cols-1 sm:grid-cols-4 gap-2.5 mt-3.5 pt-3.5 border-t border-slate-100 dark:border-zinc-700/70 text-xs">' +
               '<div class="bg-slate-50 dark:bg-zinc-900/60 rounded-xl p-2.5 border border-slate-200/60 dark:border-zinc-700/60 min-w-0">' +
                 '<div class="text-[10px] text-slate-400 dark:text-zinc-400 flex items-center gap-1">' +
                   '<i class="fa-solid fa-sun text-violet-500"></i><span>Waking up</span>' +
@@ -1041,18 +1041,20 @@
                 '</div>' +
                 '<div class="mt-1 font-semibold truncate">' + sleepHtml + '</div>' +
               '</div>' +
-              '<div class="bg-slate-50 dark:bg-zinc-900/60 rounded-xl p-2.5 border border-slate-200/60 dark:border-zinc-700/60 min-w-0">' +
-                '<div class="text-[10px] text-slate-400 dark:text-zinc-400 truncate" data-role="day-country-tz-label">' +
-                  activeCountryForClock.flag + ' ' + activeCountryForClock.name + ' Time' +
+              '<div class="grid grid-cols-2 sm:contents gap-2.5 col-span-1 sm:col-span-2">' +
+                '<div class="bg-slate-50 dark:bg-zinc-900/60 rounded-xl p-2.5 border border-slate-200/60 dark:border-zinc-700/60 min-w-0">' +
+                  '<div class="text-[10px] text-slate-400 dark:text-zinc-400 truncate" data-role="day-country-tz-label">' +
+                    activeCountryForClock.flag + ' ' + activeCountryForClock.name + ' Time' +
+                  '</div>' +
+                  '<div class="mt-1 text-xs sm:text-sm font-bold text-slate-900 dark:text-white" data-role="day-country-clock">' +
+                    formatClockInTz(nowMs, activeCountryForClock.tz) +
+                  '</div>' +
                 '</div>' +
-                '<div class="mt-1 text-xs sm:text-sm font-bold text-slate-900 dark:text-white" data-role="day-country-clock">' +
-                  formatClockInTz(nowMs, activeCountryForClock.tz) +
-                '</div>' +
-              '</div>' +
-              '<div class="bg-slate-50 dark:bg-zinc-900/60 rounded-xl p-2.5 border border-slate-200/60 dark:border-zinc-700/60 min-w-0">' +
-                '<div class="text-[10px] text-slate-400 dark:text-zinc-400 truncate">Local time</div>' +
-                '<div class="mt-1 text-xs sm:text-sm font-bold text-slate-900 dark:text-white" data-role="day-browser-clock">' +
-                  formatClockInTz(nowMs, state.browserTz) +
+                '<div class="bg-slate-50 dark:bg-zinc-900/60 rounded-xl p-2.5 border border-slate-200/60 dark:border-zinc-700/60 min-w-0">' +
+                  '<div class="text-[10px] text-slate-400 dark:text-zinc-400 truncate">Local time</div>' +
+                  '<div class="mt-1 text-xs sm:text-sm font-bold text-slate-900 dark:text-white" data-role="day-browser-clock">' +
+                    formatClockInTz(nowMs, state.browserTz) +
+                  '</div>' +
                 '</div>' +
               '</div>' +
             '</div>' +
