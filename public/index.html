@@ -770,6 +770,7 @@
 
     const LOCAL_STORAGE_TRIPS_KEY = 'it1nerary_local_trips_v1';
     const LOCAL_STORAGE_DELETED_KEY = 'it1nerary_deleted_ids_v1';
+    const LOCAL_STORAGE_INITIALIZED_KEY = 'it1nerary_initialized_v1';
 
     const firebaseConfig = {
       apiKey: "AIzaSyDou2ckTfnnHjJg1xLBlKpUxZliu4lYocY",
@@ -808,7 +809,7 @@
     function loadTripsFromLocalCache() {
       try {
         const raw = localStorage.getItem(LOCAL_STORAGE_TRIPS_KEY);
-        if (raw) {
+        if (raw !== null) {
           const parsed = JSON.parse(raw);
           if (Array.isArray(parsed)) return parsed;
         }
@@ -833,32 +834,59 @@
       } catch (e) {}
     }
 
-    // Two-way merge between localStorage (priority for offline edits/creations) and Firestore
+    // Helper that soft-deletes (sets deleted: true) AND hard-deletes a document in Firestore
+    async function removeTripFromFirestore(tripId) {
+      if (!db || !tripId) return;
+      try {
+        await db.collection('trips').doc(tripId).set(
+          { id: tripId, deleted: true, updatedAt: Date.now() },
+          { merge: true }
+        );
+      } catch (e) {}
+      try {
+        await db.collection('trips').doc(tripId).delete();
+      } catch (e) {}
+    }
+
+    // Two-way merge between localStorage (priority for offline edits/creations/deletions) and Firestore
     async function syncAndMergeTrips(remoteDocs) {
       if (isMergingWithFirestore) return;
       isMergingWithFirestore = true;
 
       try {
-        const localTrips = loadTripsFromLocalCache() || state.trips || [];
         const deletedIds = loadDeletedIdsFromLocalCache();
+        const cachedLocal = loadTripsFromLocalCache();
+        const localTrips = cachedLocal !== null ? cachedLocal : (state.trips || []);
+
+        // Any remote doc marked with `deleted: true` is added to our local tombstone set
+        const remoteMap = new Map();
+        const toDeleteFromFirestore = [];
+
+        (remoteDocs || []).forEach(function(t) {
+          if (!t || !t.id) return;
+          if (t.deleted === true) {
+            deletedIds.add(t.id);
+            return;
+          }
+          if (deletedIds.has(t.id)) {
+            // Exists on Firebase as active, but was deleted locally -> purge from Firebase
+            toDeleteFromFirestore.push(t.id);
+            return;
+          }
+          remoteMap.set(t.id, t);
+        });
+
+        saveDeletedIdsToLocalCache(deletedIds);
 
         const localMap = new Map();
         localTrips.forEach(function(t) {
-          if (t && t.id && !deletedIds.has(t.id)) {
+          if (t && t.id && !t.deleted && !deletedIds.has(t.id)) {
             localMap.set(t.id, t);
-          }
-        });
-
-        const remoteMap = new Map();
-        (remoteDocs || []).forEach(function(t) {
-          if (t && t.id) {
-            remoteMap.set(t.id, t);
           }
         });
 
         const mergedMap = new Map();
         const toPushToFirestore = [];
-        const toDeleteFromFirestore = [];
 
         // 1. Process all local trips first (Local Storage priority)
         localMap.forEach(function(localTrip, id) {
@@ -885,11 +913,9 @@
           }
         });
 
-        // 2. Process remote trips that are not in localStorage
+        // 2. Process remote trips that are not in localStorage and not in deletedIds
         remoteMap.forEach(function(remoteTrip, id) {
-          if (deletedIds.has(id)) {
-            toDeleteFromFirestore.push(id);
-          } else if (!mergedMap.has(id)) {
+          if (!deletedIds.has(id) && !mergedMap.has(id)) {
             mergedMap.set(id, remoteTrip);
           }
         });
@@ -901,11 +927,16 @@
         state.trips = mergedList;
         saveTripsToLocalCache(mergedList);
 
-        if (state.selectedTripId) renderLiveTripStructure();
-        else renderHomeView();
+        if (state.selectedTripId && !mergedMap.has(state.selectedTripId)) {
+          window.app.navigateHome();
+        } else if (state.selectedTripId) {
+          renderLiveTripStructure();
+        } else {
+          renderHomeView();
+        }
         renderSettingsTripsList();
 
-        // 3. Push any local-only or newer local trips to Firestore
+        // 3. Push any local-only or newer local trips to Firestore, and purge any locally-deleted trips
         if (db) {
           for (let i = 0; i < toPushToFirestore.length; i++) {
             const tripToPush = toPushToFirestore[i];
@@ -917,15 +948,8 @@
           }
 
           for (let j = 0; j < toDeleteFromFirestore.length; j++) {
-            const delId = toDeleteFromFirestore[j];
-            try {
-              await db.collection('trips').doc(delId).delete();
-              deletedIds.delete(delId);
-            } catch (delErr) {
-              console.warn('Failed to delete trip from Firestore:', delErr);
-            }
+            await removeTripFromFirestore(toDeleteFromFirestore[j]);
           }
-          saveDeletedIdsToLocalCache(deletedIds);
         }
       } finally {
         isMergingWithFirestore = false;
@@ -1584,6 +1608,10 @@
     function renderSettingsTripsList() {
       const listEl = document.getElementById('settingsTripsList');
       if (!listEl) return;
+      if (!state.trips.length) {
+        listEl.innerHTML = '<div class="text-xs text-slate-400 dark:text-zinc-500 text-center py-4">No trips saved. Click "Create New Trip" or "Reset Sample".</div>';
+        return;
+      }
       listEl.innerHTML = state.trips.map(function(t) {
         const dayLen = (t.days && t.days.length) ? t.days.length : 0;
         return '<div class="p-3.5 rounded-xl bg-slate-50 dark:bg-zinc-900/70 border border-slate-200 dark:border-zinc-700 flex items-center justify-between gap-2">' +
@@ -1938,6 +1966,7 @@
         draft.name = nameInput && nameInput.value.trim() ? nameInput.value.trim() : 'Untitled Trip';
         draft.subtitle = subInput ? subInput.value.trim() : '';
         draft.updatedAt = Date.now();
+        delete draft.deleted;
 
         ['startTravel', 'endTravel'].forEach(function(prefix) {
           const typeEl = document.getElementById(prefix + '_type');
@@ -1962,7 +1991,7 @@
           };
         });
 
-        // Ensure any previously deleted ID is cleared if re-saved
+        // Clear from deleted tombstones if explicitly saved
         const deletedIds = loadDeletedIdsFromLocalCache();
         if (deletedIds.has(draft.id)) {
           deletedIds.delete(draft.id);
@@ -1992,31 +2021,30 @@
       },
 
       deleteTrip: async function(tripId) {
-        state.trips = state.trips.filter(function(t) { return t.id !== tripId; });
-        saveTripsToLocalCache(state.trips);
-
-        // Record deletion locally so offline deletions propagate when back online
+        // 1. Permanently record in local tombstones so Firebase snapshots can never resurrect it
         const deletedIds = loadDeletedIdsFromLocalCache();
         deletedIds.add(tripId);
         saveDeletedIdsToLocalCache(deletedIds);
 
-        if (db) {
-          try {
-            await db.collection('trips').doc(tripId).delete();
-            deletedIds.delete(tripId);
-            saveDeletedIdsToLocalCache(deletedIds);
-          } catch (e) {}
-        }
+        // 2. Remove from local state & localStorage immediately
+        state.trips = state.trips.filter(function(t) { return t.id !== tripId; });
+        saveTripsToLocalCache(state.trips);
+
         if (state.selectedTripId === tripId) this.navigateHome();
         else renderHomeView();
         renderSettingsTripsList();
         showToast('Trip deleted');
+
+        // 3. Soft-delete (deleted: true) + hard-delete on Firestore
+        await removeTripFromFirestore(tripId);
       },
 
       seedDemoTrip: async function() {
         const demo = buildDefaultDemoTrip();
         demo.updatedAt = Date.now();
+        delete demo.deleted;
 
+        // Remove the sample trip ID from the deleted tombstone list so it is allowed back
         const deletedIds = loadDeletedIdsFromLocalCache();
         deletedIds.delete(demo.id);
         saveDeletedIdsToLocalCache(deletedIds);
@@ -2040,8 +2068,25 @@
     });
 
     async function initApp() {
+      const deletedIds = loadDeletedIdsFromLocalCache();
       const cached = loadTripsFromLocalCache();
-      state.trips = (cached && cached.length > 0) ? cached : [buildDefaultDemoTrip()];
+      const hasInitialized = localStorage.getItem(LOCAL_STORAGE_INITIALIZED_KEY) === 'true';
+
+      if (cached !== null) {
+        // Respect empty array [] if user deleted all trips, and filter out any tombstoned IDs
+        state.trips = cached.filter(function(t) { return t && t.id && !t.deleted && !deletedIds.has(t.id); });
+      } else if (!hasInitialized) {
+        // First time ever opening the app
+        const demo = buildDefaultDemoTrip();
+        state.trips = deletedIds.has(demo.id) ? [] : [demo];
+      } else {
+        state.trips = [];
+      }
+
+      try {
+        localStorage.setItem(LOCAL_STORAGE_INITIALIZED_KEY, 'true');
+      } catch (e) {}
+
       saveTripsToLocalCache(state.trips);
       renderHomeView();
 
@@ -2061,7 +2106,7 @@
             snap.forEach(function(d) { docs.push(d.data()); });
             await syncAndMergeTrips(docs);
             updateStatusBadge(true, '');
-            showToast('Back online — synced local trips to Firebase');
+            showToast('Back online — synced local changes to Firebase');
           } catch (e) {}
         }
       });
